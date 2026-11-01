@@ -53,3 +53,12 @@ class Patient(Base):
     back_populates="patient",
     cascade="all, delete-orphan",
     )
+    medical_records: Mapped[list["MedicalRecord"]] = relationship(
+    back_populates="patient",
+    cascade="all, delete-orphan",
+    )
+    
+    conversations: Mapped[list["Conversation"]] = relationship(
+    back_populates="patient",
+    cascade="all, delete-orphan",
+    )

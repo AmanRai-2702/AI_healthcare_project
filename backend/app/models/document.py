@@ -140,3 +140,6 @@ class Document(Base):
     back_populates="document",
     cascade="all, delete-orphan",
     )
+    medical_records: Mapped[list["MedicalRecord"]] = relationship(
+    back_populates="source_document",
+    )
