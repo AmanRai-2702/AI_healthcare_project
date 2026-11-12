@@ -36,3 +36,6 @@ venv/
 
 # Temporary files
 *.tmp
+
+ai-service/data/
+ai-service/models/*.pth

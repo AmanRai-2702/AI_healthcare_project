@@ -13,8 +13,11 @@ class ModelLoadError(RuntimeError):
     """Raised when a model checkpoint cannot be loaded safely."""
 
 
+IMAGE_MEAN = [0.485, 0.456, 0.406]
+IMAGE_STD = [0.229, 0.224, 0.225]
+
+
 def build_model(num_classes: int = 2) -> nn.Module:
-    """Create a ResNet-18 architecture without downloading pretrained weights."""
     if not isinstance(num_classes, int) or isinstance(num_classes, bool):
         raise ValueError("num_classes must be an integer.")
     if num_classes < 2:
@@ -30,18 +33,11 @@ def load_model(
     num_classes: int = 2,
     device: str | torch.device | None = None,
 ) -> nn.Module:
-    """Load trained weights and return the model in evaluation mode.
-
-    The checkpoint must contain a compatible state_dict. Randomly
-    initialized weights are never returned as a loaded model.
-    """
+    """Load trained ResNet-18 checkpoint."""
     path = Path(checkpoint_path).expanduser()
 
     if not path.is_file():
-        raise FileNotFoundError(
-            f"Model checkpoint not found: {path}. "
-            "Provide a trained, compatible checkpoint."
-        )
+        raise FileNotFoundError(f"Model checkpoint not found: {path}")
 
     target_device = torch.device(
         device if device is not None
@@ -49,40 +45,44 @@ def load_model(
     )
 
     if target_device.type == "cuda" and not torch.cuda.is_available():
-        raise ModelLoadError("CUDA was requested but is not available.")
+        raise ModelLoadError("CUDA is unavailable.")
 
     try:
-        # weights_only=True avoids unpickling arbitrary Python objects.
         checkpoint: Any = torch.load(
             path,
             map_location=target_device,
             weights_only=True,
         )
     except Exception as exc:
-        raise ModelLoadError(
-            f"Could not read checkpoint '{path}': {exc}"
-        ) from exc
+        raise ModelLoadError(f"Could not read checkpoint: {exc}") from exc
 
-    if isinstance(checkpoint, dict):
-        state_dict = checkpoint.get(
-            "state_dict",
-            checkpoint.get("model_state_dict", checkpoint),
-        )
-    else:
-        raise ModelLoadError(
-            "Checkpoint must be a state_dict or contain "
-            "'state_dict' / 'model_state_dict'."
-        )
+    if not isinstance(checkpoint, dict):
+        raise ModelLoadError("Invalid checkpoint format.")
+
+    state_dict = checkpoint.get("model_state_dict", checkpoint.get("state_dict"))
 
     if not isinstance(state_dict, dict) or not state_dict:
-        raise ModelLoadError("Checkpoint does not contain a valid state_dict.")
+        raise ModelLoadError("Checkpoint has no valid model_state_dict.")
 
-    # Support checkpoints saved from DataParallel models.
-    if all(isinstance(key, str) for key in state_dict):
-        state_dict = {
-            key.removeprefix("module."): value
-            for key, value in state_dict.items()
-        }
+    classes = checkpoint.get("classes", {
+        "normal": 0,
+        "pneumonia": 1,
+    })
+
+    expected_classes = {
+        "normal": 0,
+        "pneumonia": 1,
+    }
+
+    if classes != expected_classes:
+        raise ModelLoadError(
+            f"Unexpected class mapping in checkpoint: {classes}"
+        )
+
+    state_dict = {
+        key.removeprefix("module."): value
+        for key, value in state_dict.items()
+    }
 
     model = build_model(num_classes=num_classes)
 
@@ -90,10 +90,15 @@ def load_model(
         model.load_state_dict(state_dict, strict=True)
     except (RuntimeError, TypeError) as exc:
         raise ModelLoadError(
-            "Checkpoint weights do not match the ResNet-18 architecture "
-            f"with {num_classes} output classes: {exc}"
+            f"Checkpoint architecture mismatch: {exc}"
         ) from exc
 
     model.to(target_device)
     model.eval()
+
+    # Keep preprocessing metadata alongside the model.
+    model.xray_mean = checkpoint.get("mean", IMAGE_MEAN)
+    model.xray_std = checkpoint.get("std", IMAGE_STD)
+    model.xray_class_names = ["normal", "pneumonia"]
+
     return model
