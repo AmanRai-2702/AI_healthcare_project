@@ -3,6 +3,7 @@ import pytest
 
 from app.rag.chunking import chunk_text
 from app.rag.ingestion import ingest_text
+from app.rag.retriever import store_chunks, search_chunks
 
 
 def test_chunk_text_returns_empty_for_empty_input():
@@ -47,3 +48,52 @@ def test_ingestion_rejects_missing_patient_id():
             source_id="demo-report-001",
             patient_id="",
         )
+
+def test_retriever_finds_relevant_information():
+    """Check that a question retrieves a relevant synthetic record."""
+
+    chunks = ingest_text(
+        text=(
+            "Synthetic note: The patient reported seasonal allergies. "
+            "The clinician recommended discussing allergy treatment "
+            "options at the next appointment."
+        ),
+        source_id="rag-test-source-001",
+        patient_id="rag-test-patient-001",
+    )
+
+    store_chunks(chunks)
+
+    results = search_chunks(
+        question="What does the note say about allergies?",
+        patient_id="rag-test-patient-001",
+    )
+
+    assert len(results) > 0
+    assert "allerg" in results[0]["text"].lower()
+
+
+def test_retriever_does_not_return_another_patients_records():
+    """Check that patient filtering excludes unrelated records."""
+
+    chunks = ingest_text(
+        text="Synthetic note: The patient reported a headache.",
+        source_id="rag-test-source-002",
+        patient_id="rag-test-patient-002",
+    )
+
+    store_chunks(chunks)
+
+    results = search_chunks(
+        question="What symptom was reported?",
+        patient_id="rag-test-patient-001",
+    )
+
+    assert all(
+        result["metadata"]["patient_id"] == "rag-test-patient-001"
+        for result in results
+    )
+    assert all(
+        result["metadata"]["source_id"] != "rag-test-source-002"
+        for result in results
+    )
