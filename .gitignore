@@ -26,3 +26,6 @@ models/
 *.egg-info/
 build/
 dist/
+
+# ChromaDB vector database
+data/chroma/
