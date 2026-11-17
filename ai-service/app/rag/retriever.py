@@ -1,4 +1,6 @@
 
+import json
+
 import chromadb
 
 from app.rag.embeddings import (
@@ -6,7 +8,8 @@ from app.rag.embeddings import (
     create_query_embedding,
 )
 
-# Create a local database for storing document chunks
+
+# Create a local database for storing document chunks.
 client = chromadb.PersistentClient(path="data/chroma")
 
 collection = client.get_or_create_collection(
@@ -16,7 +19,7 @@ collection = client.get_or_create_collection(
 
 
 def store_chunks(chunks):
-    """Store document chunks and their embeddings."""
+    """Store document chunks, embeddings, and metadata."""
 
     if not chunks:
         return
@@ -26,14 +29,25 @@ def store_chunks(chunks):
 
     embeddings = create_embeddings(texts)
 
-    metadata = [
-        {
+    metadata = []
+
+    for chunk in chunks:
+        item = {
             "patient_id": chunk["patient_id"],
             "source_id": chunk["source_id"],
             "source_type": chunk["source_type"],
+            "chunk_index": chunk["chunk_index"],
+            "findings": json.dumps(chunk.get("findings", [])),
         }
-        for chunk in chunks
-    ]
+
+        # ChromaDB does not accept None metadata values.
+        if chunk.get("document_name") is not None:
+            item["document_name"] = chunk["document_name"]
+
+        if chunk.get("clinical_date") is not None:
+            item["clinical_date"] = chunk["clinical_date"]
+
+        metadata.append(item)
 
     collection.upsert(
         ids=ids,
@@ -46,17 +60,17 @@ def store_chunks(chunks):
 def search_chunks(question, patient_id, top_k=3):
     """Find relevant chunks belonging to one patient."""
 
-    if not question.strip():
+    if not isinstance(question, str) or not question.strip():
         raise ValueError("Question cannot be empty")
 
-    if not patient_id.strip():
+    if not isinstance(patient_id, str) or not patient_id.strip():
         raise ValueError("Patient ID cannot be empty")
 
     if top_k < 1:
         raise ValueError("top_k must be at least 1")
-    
+
     if collection.count() == 0:
-            return []
+        return []
 
     question_embedding = create_query_embedding(question)
 
@@ -69,9 +83,16 @@ def search_chunks(question, patient_id, top_k=3):
     matches = []
 
     for i, text in enumerate(results["documents"][0]):
+        item_metadata = results["metadatas"][0][i]
+
+        # Convert stored JSON findings back into a Python list.
+        item_metadata["findings"] = json.loads(
+            item_metadata.get("findings", "[]")
+        )
+
         matches.append({
             "text": text,
-            "metadata": results["metadatas"][0][i],
+            "metadata": item_metadata,
             "distance": results["distances"][0][i],
         })
 

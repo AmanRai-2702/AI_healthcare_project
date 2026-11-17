@@ -133,3 +133,71 @@ def test_answer_question_returns_no_context_for_unknown_patient():
 
     assert result["has_context"] is False
     assert result["sources"] == []
+    
+
+def test_ingestion_preserves_medical_findings():
+    findings = [
+        {
+            "name": "hemoglobin",
+            "value": 13.5,
+            "unit": "g/dL",
+        },
+        {
+            "name": "glucose",
+            "value": 105,
+            "unit": "mg/dL",
+        },
+    ]
+
+    records = ingest_text(
+        text="Hemoglobin: 13.5 g/dL. Glucose: 105 mg/dL.",
+        source_id="lab-report-001",
+        patient_id="patient-001",
+        source_type="lab_report",
+        document_name="blood_report.pdf",
+        clinical_date="2026-11-15",
+        findings=findings,
+    )
+
+    assert len(records) == 1
+    assert records[0]["document_name"] == "blood_report.pdf"
+    assert records[0]["clinical_date"] == "2026-11-15"
+    assert records[0]["source_type"] == "lab_report"
+    assert records[0]["findings"] == findings
+
+
+def test_retriever_preserves_medical_metadata():
+    findings = [
+        {
+            "name": "hemoglobin",
+            "value": 13.5,
+            "unit": "g/dL",
+        }
+    ]
+
+    chunks = ingest_text(
+        text="Hemoglobin: 13.5 g/dL.",
+        source_id="metadata-report-001",
+        patient_id="metadata-patient-001",
+        source_type="lab_report",
+        document_name="blood_report.pdf",
+        clinical_date="2026-11-15",
+        findings=findings,
+    )
+
+    store_chunks(chunks)
+
+    results = search_chunks(
+        question="What is the hemoglobin value?",
+        patient_id="metadata-patient-001",
+    )
+
+    assert len(results) > 0
+
+    metadata = results[0]["metadata"]
+
+    assert metadata["source_id"] == "metadata-report-001"
+    assert metadata["source_type"] == "lab_report"
+    assert metadata["document_name"] == "blood_report.pdf"
+    assert metadata["clinical_date"] == "2026-11-15"
+    assert metadata["findings"] == findings
