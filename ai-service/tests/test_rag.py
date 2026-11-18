@@ -103,7 +103,16 @@ def test_retriever_does_not_return_another_patients_records():
 
 
 
-def test_answer_question_returns_relevant_context():
+
+def test_answer_question_returns_relevant_context(monkeypatch):
+    from app.rag import pipeline
+
+    monkeypatch.setattr(
+        pipeline,
+        "generate_response",
+        lambda prompt: "The note mentions seasonal allergies.",
+    )
+
     chunks = ingest_text(
         text=(
             "Synthetic note: The patient reported seasonal allergies. "
@@ -121,8 +130,9 @@ def test_answer_question_returns_relevant_context():
     )
 
     assert result["has_context"] is True
-    assert "allerg" in result["answer"].lower()
     assert len(result["sources"]) > 0
+    assert "seasonal allergies" in result["answer"]
+
 
 
 def test_answer_question_returns_no_context_for_unknown_patient():

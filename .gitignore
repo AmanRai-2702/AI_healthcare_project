@@ -29,3 +29,6 @@ dist/
 
 # ChromaDB vector database
 data/chroma/
+
+# SQLite conversation database
+data/conversations.db*

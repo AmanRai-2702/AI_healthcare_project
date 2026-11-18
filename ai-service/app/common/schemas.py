@@ -6,6 +6,7 @@ class ChatRequest(BaseModel):
     patient_id: str = Field(min_length=1)
     question: str = Field(min_length=1)
     top_k: int = Field(default=3, ge=1, le=10)
+    conversation_id: str | None = None
 
 
 class ChatResponse(BaseModel):
@@ -13,3 +14,4 @@ class ChatResponse(BaseModel):
     answer: str
     sources: list[dict]
     has_context: bool
+    conversation_id: str
