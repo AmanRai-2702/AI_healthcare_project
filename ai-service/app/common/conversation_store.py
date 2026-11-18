@@ -247,6 +247,8 @@ def get_conversation_history(
     ]
 
 
+
+
 def list_conversations(
     patient_id: str,
     limit: int = 50,
@@ -273,6 +275,16 @@ def list_conversations(
                 c.created_at,
                 c.updated_at,
                 COUNT(m.id) AS message_count,
+
+                (
+                    SELECT content
+                    FROM messages
+                    WHERE conversation_id = c.conversation_id
+                    AND role = 'user'
+                    ORDER BY id ASC
+                    LIMIT 1
+                ) AS title,
+
                 (
                     SELECT content
                     FROM messages
@@ -280,9 +292,11 @@ def list_conversations(
                     ORDER BY id DESC
                     LIMIT 1
                 ) AS last_message
+
             FROM conversations c
             LEFT JOIN messages m
                 ON c.conversation_id = m.conversation_id
+
             WHERE c.patient_id = ?
             GROUP BY c.conversation_id
             ORDER BY c.updated_at DESC
@@ -297,6 +311,7 @@ def list_conversations(
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
             "message_count": row["message_count"],
+            "title": row["title"] or "New conversation",
             "last_message": row["last_message"],
         }
         for row in rows
