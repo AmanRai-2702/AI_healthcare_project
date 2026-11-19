@@ -13,14 +13,20 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+.coverage
+htmlcov/
 
 # Generated data and model files
 data/raw/
 data/processed/
-/models/
+models/
 *.pt
 *.pth
 *.onnx
+
+# Local X-ray datasets and trained weights (not versioned)
+ai-service/data/
+ai-service/models/
 
 # Python build and packaging artifacts
 *.egg-info/
@@ -32,3 +38,6 @@ data/chroma/
 
 # SQLite conversation database
 data/conversations.db*
+
+# Temporary files
+*.tmp
