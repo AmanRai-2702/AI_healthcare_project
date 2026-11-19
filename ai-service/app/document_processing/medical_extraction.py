@@ -66,7 +66,7 @@ def extract_medical_findings(text: str) -> list[dict[str, Any]]:
         separator_match = re.search(r"[:=]\s*(" + NUMBER_PATTERN + r")", line)
 
         # Otherwise, look for the first numeric token in the line.
-        number_match = separator_match or re.search(NUMBER_PATTERN, line)
+        number_match = separator_match or re.search("(" + NUMBER_PATTERN + ")", line)
 
         if number_match is None:
             continue

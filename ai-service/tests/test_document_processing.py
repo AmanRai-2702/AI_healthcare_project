@@ -110,3 +110,12 @@ def test_pipeline_processes_synthetic_lab_image(tmp_path):
         item["name"] == "glucose" and item["value"] == 95.0
         for item in result["findings"]
     )
+
+
+def test_extractor_handles_value_without_separator():
+    findings = extract_medical_findings("Hemoglobin 13.5 g/dL")
+
+    assert len(findings) == 1
+    assert findings[0]["name"] == "hemoglobin"
+    assert findings[0]["value"] == 13.5
+    assert findings[0]["unit"] == "g/dL"
